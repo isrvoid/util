@@ -1,0 +1,3 @@
+// first line
+"// not a comment\"\\\" /* still not a comment "
+"// not a comment\"\\\" /* still not a comment "/* comment /* " not string "*/foo
