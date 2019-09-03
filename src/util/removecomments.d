@@ -1,7 +1,7 @@
 /*
-Copyright:  Copyright Johannes Teichrieb 2019
-License:    opensource.org/licenses/MIT
-*/
+ * Copyright:   Copyright Johannes Teichrieb 2015 - 2019
+ * License:     opensource.org/licenses/MIT
+ */
 module util.removecomments;
 
 import std.regex;
