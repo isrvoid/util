@@ -21,18 +21,12 @@ enum lineCommentStart = "//";
 enum blockCommentStart = "/*";
 enum stringStart = `"`;
 
-enum missingTerminatorWarnings = [lineCommentStart:"missing line terminator",
-                               blockCommentStart:"unterminated block comment",
-                               stringStart:"unterminated string"];
-
-public string lastWarning;
-
 /* Removes C-style comments and strings to allow easier parsing of source files.
 Block comments are replaced with a space.
 Strings are replaced with given argument.
 For simplicity, also removes unterminated block comment or string
 at the end of the input (printing a warning).  */
-public string removeCommentsReplaceStrings(string strReplacement = " s ")(string s) @trusted
+public string removeCommentsReplaceStrings(string strReplacement = " s ")(string s) pure @trusted
 {
     import std.array : Appender;
     Appender!string app;
@@ -61,7 +55,6 @@ public string removeCommentsReplaceStrings(string strReplacement = " s ")(string
         }
         catch (NoMatchException)
         {
-            lastWarning = missingTerminatorWarnings[start];
             s = s.getLineTerminatorAtBack();
         }
     }
@@ -69,7 +62,7 @@ public string removeCommentsReplaceStrings(string strReplacement = " s ")(string
     return app.data;
 }
 
-string findNextStart(string s)
+string findNextStart(string s) pure
 {
     size_t i;
     while (i < s.length)
@@ -108,7 +101,7 @@ string getReplacement(string strReplacement)(string matchedStart)
     assert(0);
 }
 
-string function(string) getPostFunction(string matchedStart) pure nothrow @safe
+string function(string) pure getPostFunction(string matchedStart) pure nothrow @safe
 {
     if (matchedStart == lineCommentStart)
         return &postLineComment;
@@ -123,7 +116,7 @@ string function(string) getPostFunction(string matchedStart) pure nothrow @safe
 }
 
 // single CR as line terminator is not supported
-string postLineComment(string s) @trusted
+string postLineComment(string s) pure @trusted
 {
     auto hit = s.find('\n');
     if (hit.empty)
@@ -136,7 +129,7 @@ string postLineComment(string s) @trusted
         return (hit.ptr - 1)[0 .. hit.length + 1];
 }
 
-string postBlockComment(string s) @safe
+string postBlockComment(string s) pure @safe
 {
     auto hit = s.find("*/");
     if (hit.empty)
@@ -145,7 +138,7 @@ string postBlockComment(string s) @safe
     return hit[2 .. $];
 }
 
-string postString(string s) @safe
+string postString(string s) pure @safe
 {
     while (true)
     {
