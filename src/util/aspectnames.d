@@ -81,16 +81,15 @@ struct Parser
 
     private void convCap() @trusted
     {
-        import std.algorithm : map, filter;
+        import std.algorithm : map, filter, findSplitBefore;
         import std.array : array, split;
         import std.string : strip;
         _front.name = cap[1];
         _front.elem = cap[2]
             .removeCommentsReplaceStrings
-            .strip
             .split(',')
-            .map!strip
-            .filter!`a != "_end"`
+            .map!(a => a.findSplitBefore("=")[0].strip)
+            .filter!`a.length && a != "_end"`
             .array;
         const pPost = cap.post.ptr;
         const pInput = input.ptr;
@@ -154,6 +153,12 @@ struct Parser
     assert("" == res.post);
 }
 
+@("trailing ,") unittest
+{
+    string input = "enum class Aspect { foo,\n };";
+    assert(["foo"] == Parser(input).front.elem);
+}
+
 @("popFront") unittest
 {
     string input = "enum class Aspect {};";
@@ -197,4 +202,25 @@ struct Parser
     assert(b[1] == res.post);
     parser.popFront();
     assert(parser.empty);
+}
+
+@("assign enum value") unittest
+{
+    string input = "enum class Aspect { foo = 1 };";
+    auto parser = Parser(input);
+    assert(["foo"] == parser.front.elem);
+}
+
+@("multiple assign") unittest
+{
+    string input = "enum class SomeAspect {
+            one = OFFSET,
+            two,
+            collision = two,
+            three = GAP,
+            any,
+            _end = any ,}\n;\n";
+
+    auto parser = Parser(input);
+    assert(["one", "two", "collision", "three", "any"] == parser.front.elem);
 }
