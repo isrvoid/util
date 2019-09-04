@@ -77,7 +77,8 @@ struct Parser
         matchNext();
     }
 
-    private void matchNext()
+private:
+    void matchNext()
     {
         cap = matchFirst(toParse, r);
         if (!cap.empty)
@@ -86,36 +87,38 @@ struct Parser
         toParse = cap.post;
     }
 
-    private void convCap() @trusted
+    void convCap() pure @trusted
     {
-        import std.algorithm : map, filter, findSplitBefore;
-        import std.array : array, split;
-        import std.string : strip;
         _front.name = cap[1];
-        _front.elem = cap[2]
-            .removeCommentsReplaceStrings
-            .split(',')
-            .map!(a => a.findSplitBefore("=")[0].strip)
-            .filter!`a.length && a != "_end"`
-            .array;
+        _front.elem = convElem(cap[2]);
         const pPost = cap.post.ptr;
         const pInput = input.ptr;
         _front.upToPost = pInput[0 .. pPost - pInput];
         _front.post = cap.post;
     }
 
-    private
+    string[] convElem(string s) pure const
     {
-        import std.regex : ctRegex, Captures;
-        enum aspectEnumNamePattern = r"enum\s+class\s+(\w*Aspect)";
-        enum aspectEnumPattern = aspectEnumNamePattern ~ r"[^{]*\{([^}]*)\}\s*;";
-        static const r = ctRegex!aspectEnumPattern;
-
-        string input;
-        string toParse;
-        Captures!string cap;
-        Aspect _front;
+        import std.algorithm : map, filter, findSplitBefore;
+        import std.array : array, split;
+        import std.string : strip;
+        return s
+            .removeCommentsReplaceStrings
+            .split(',')
+            .map!(a => a.findSplitBefore("=")[0].strip)
+            .filter!`a.length && a != "_end"`
+            .array;
     }
+
+    import std.regex : ctRegex, Captures;
+    enum aspectEnumNamePattern = r"enum\s+class\s+(\w*Aspect)";
+    enum aspectEnumPattern = aspectEnumNamePattern ~ r"[^{]*\{([^}]*)\}\s*;";
+    static const r = ctRegex!aspectEnumPattern;
+
+    string input;
+    string toParse;
+    Captures!string cap;
+    Aspect _front;
 }
 
 @("empty input") unittest
