@@ -15,17 +15,24 @@ import util.removecomments;
  * - don't comment out enum class Aspect definition
  * - no comments or macros between enum and opening {
  * - don't use preprocessor within enum class Aspect { } block (macros, include, conditional)
- *      exception: specifying enum values is fine: foo = FIRST,
  * - no commented out '{' or '}' between Aspect's 'enum' and ';'
  *
  * comments within { } are fine
- * verifying the value of last element is a separate concern
- *      (can't determine foo = VAL without preprocessor anyway)
- * verifying '_end' enumerator is a separate concern, it is simply ignored:
- * - no name is generated for _end
- * - no check for missing _end -- it would fail to compile later anyway
- * - _end not being the last element or assignment to it is up to developer:
- *      e.g.: (_end, any = _end) or (any, _end = any)
+ * verifying enum values is problematic:
+ * - can't determine foo = VAL without preprocessor
+ * - can't determine foo = AnotherEnum::bar without compiling
+ * We only allow assignment of numeric offset >= 0 to the first enum: foo = 1.
+ * Extended version which allows
+ * - assignment to arbitrary enums: foo, bar = 2
+ * - assignment of own enumerators: foo, bar = foo + 2
+ * would need to detect collisions:
+ * (foo, bar = foo), (foo = 2, bar, baz = 2), (foo, bar, baz = foo + 1), etc.
+ * Without collision detection, names could be wrong,
+ *      which is much worse than prohibiting arbitrary assignment.
+ * '_end' enumerator:
+ * - no check, if missing -- it would fail to compile later anyway
+ * - if present, verified to be the last enum
+ * - no name is generated for it
  */
 
 
@@ -204,23 +211,21 @@ struct Parser
     assert(parser.empty);
 }
 
-@("assign enum value") unittest
+@("assign 0 has no effect") unittest
 {
-    string input = "enum class Aspect { foo = 1 };";
+    string input = "enum class Aspect { foo = 0 };";
     auto parser = Parser(input);
     assert(["foo"] == parser.front.elem);
 }
 
-@("multiple assign") unittest
+@("assign") unittest
 {
-    string input = "enum class SomeAspect {
-            one = OFFSET,
-            two,
-            collision = two,
-            three = GAP,
-            any,
-            _end = any ,}\n;\n";
-
+    string input = "enum class Aspect { foo = 1, bar };";
     auto parser = Parser(input);
-    assert(["one", "two", "collision", "three", "any"] == parser.front.elem);
+    assert(["", "foo", "bar"] == parser.front.elem);
 }
+
+// TODO
+// assign < 0 throws
+// assign following enum throws
+// _end not being last throws
