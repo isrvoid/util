@@ -21,11 +21,12 @@ class Foo {
 namespace b {
 
 enum class Aspect {
-    bOne,
+    bOne = 42,
     /* might insert another one here */
     bTwo, // second
-    end
-    // end missing _ is intended
+    end,
+    // this end is normal enum
+    _end,
 };
 
 namespace c {
@@ -36,9 +37,9 @@ class Bar {
 
 enum class ModuleCAspect : unsigned int /* why not leave it int? */
 {
-    cOne
+    cOne = 16
     // there
-    , cTwo, _end_wrong // finish
+    , cTwo, _end_wrong/* another fake end */, _end // _end
 } ;
 
 } // namespace c
