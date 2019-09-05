@@ -31,6 +31,8 @@ module util.aspectnames;
  */
 
 import util.removecomments;
+import std.format : format;
+
 
 @safe:
 
@@ -72,13 +74,13 @@ struct Parser
     }
 
     Aspect front() pure
-        in (!empty)
+    in (!empty)
     {
         return _front;
     }
 
     void popFront()
-        in (!empty)
+    in (!empty)
     {
         matchNext();
     }
@@ -97,8 +99,6 @@ private:
 
     void convCap() pure @trusted
     {
-        import std.format : format;
-
         _front.name = cap[1];
         try
             _front.e = convEnums(cap[2], _front.offset);
@@ -318,7 +318,7 @@ import std.exception : assertThrown;
 
 @("large offset") unittest
 {
-    // this would result in a large LUT, but it's not for parser to decide
+    // this would result in a large LUT, but it's not parser's concern
     assert(1000000 == Parser("enum class Aspect { foo = 1000000, _end };").front.offset);
 }
 
@@ -344,4 +344,78 @@ import std.exception : assertThrown;
 
     parser.popFront();
     assert(parser.empty);
+}
+
+private enum NameLutQualifier = "static constexpr const char* ";
+
+string makeNameLut(string aspectName, string[] enums, uint offset) pure
+in (enums)
+{
+    enum : string {
+        qualifier = NameLutQualifier,
+        postName = "Name[] = {\n",
+        indent = "    "
+    }
+
+    enum offsetMax = 256;
+    if (offset > offsetMax)
+        throw new Exception(format!"Offset %d would result in a large LUT. Max offset: %d"(offset, offsetMax));
+
+    import std.array : appender;
+    auto app = appender(qualifier);
+    app ~= aspectName;
+    app ~= postName;
+
+    foreach (i; 0 .. offset)
+    {
+        app ~= indent;
+        app ~= "nullptr,\n";
+    }
+
+    app ~= indent;
+    app ~= enums[0];
+    enums = enums[1 .. $];
+
+    while (enums.length)
+    {
+        app ~= ",\n";
+        app ~= indent;
+        app ~= enums[0];
+        enums = enums[1 .. $];
+    }
+    app ~= "\n};\n";
+
+    return app.data;
+}
+
+@("single enumerator") unittest
+{
+    const expect = NameLutQualifier ~ "AspectName[] = {\n    foo\n};\n";
+    assert(expect == makeNameLut("Aspect", ["foo"], 0));
+}
+
+@("two enumerators") unittest
+{
+    const expect = NameLutQualifier ~ "FooBarAspectName[] = {\n    foo,\n    bar\n};\n";
+    assert(expect == makeNameLut("FooBarAspect", ["foo", "bar"], 0));
+}
+
+@("multiple enumerators") unittest
+{
+    const expect = NameLutQualifier ~ "NumberAspectName[] = {\n"
+        ~ "    one,\n    two,\n    three\n};\n";
+    assert(expect == makeNameLut("NumberAspect", ["one", "two", "three"], 0));
+}
+
+@("offset single enumerator") unittest
+{
+    const expect = NameLutQualifier ~ "FooAspectName[] = {\n    nullptr,\n    foo\n};\n";
+    assert(expect == makeNameLut("FooAspect", ["foo"], 1));
+}
+
+@("offset multiple enumerators") unittest
+{
+    const expect = NameLutQualifier ~ "NumberAspectName[] = {\n    nullptr,\n    nullptr,\n"
+        ~ "    nullptr,\n    nullptr,\n    one,\n    two,\n    three\n};\n";
+    assert(expect == makeNameLut("NumberAspect", ["one", "two", "three"], 4));
 }
