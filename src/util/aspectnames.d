@@ -38,8 +38,39 @@ import std.regex : ctRegex, Captures, matchFirst;
 @safe:
 
 version (unittest) { } else
-void main()
+void main(string[] args) @trusted
 {
+    import std.getopt;
+    import std.file : dirEntries, SpanMode, read, write;
+    import std.path : extension, dirName, buildPath;
+
+    string src;
+    auto opt = getopt(args,
+            config.required,
+            "src", "Source root.", &src);
+    // TODO option to remove generated files
+
+    if (opt.helpWanted)
+    {
+        defaultGetoptPrinter("Generate and include names for Aspect enums in .h files.", opt.options);
+        return;
+    }
+
+    foreach (e; dirEntries(src, SpanMode.depth, false))
+    {
+        if (!e.isFile || e.name.extension != ".h")
+            continue;
+
+        string content = cast(string) read(e.name);
+        string[] includeFileName;
+        string[] includeFileContent;
+        string maybeModified = content.maybeUpdateInclude(includeFileName, includeFileContent);
+        if (content != maybeModified)
+            e.name.write(maybeModified);
+
+        foreach (i, include; includeFileName)
+            e.name.dirName.buildPath(include).write(includeFileContent[i]);
+    }
 }
 
 class ParseException : Exception
@@ -423,7 +454,15 @@ in (enums)
 private enum includeFileNamePrefix = "_gen_";
 private enum includeComment = " // generated\n";
 
+version (unittest)
 string maybeUpdateInclude(string s) @trusted
+{
+    string[] dummy1, dummy2;
+    return maybeUpdateInclude(s, dummy1, dummy2);
+}
+
+// TODO refactor to struct
+string maybeUpdateInclude(string s, out string[] includeFileName, out string[] content) @trusted
 {
     import std.algorithm : find;
     static immutable r = ctRegex!(`^\s*#include "` ~ includeFileNamePrefix ~ `(\w*Aspect)Name.h"`);
@@ -444,13 +483,17 @@ string maybeUpdateInclude(string s) @trusted
     immutable (char)* p = s.ptr;
     for (; !parser.empty; parser.popFront())
     {
-        immutable char* pEnd = parser.front.upToPost.ptr + parser.front.upToPost.length;
-        app ~= p[0 .. pEnd - p];
-        p = parser.front.post.ptr;
+        auto front = parser.front;
+        includeFileName ~= getIncludeFileName(front.name);
+        content ~= makeNameLut(front.name, front.e, front.offset);
 
-        auto cap = parser.front.post.matchFirst(r);
+        immutable char* pEnd = front.upToPost.ptr + front.upToPost.length;
+        app ~= p[0 .. pEnd - p];
+        p = front.post.ptr;
+
+        auto cap = front.post.matchFirst(r);
         const bool missing = cap.empty;
-        const bool wrongName = !cap.empty && cap[1] != parser.front.name;
+        const bool wrongName = !cap.empty && cap[1] != front.name;
         if (wrongName)
             p = cap.post.find('\n').ptr; // strip old include
 
@@ -466,20 +509,32 @@ string maybeUpdateInclude(string s) @trusted
     return app.data;
 }
 
+private string getIncludeFileName(string aspectName) pure nothrow
+{
+    auto app = Appender!string(includeFileNamePrefix);
+    app ~= aspectName;
+    app ~= "Name.h";
+    return app.data;
+}
+
+@("getIncludeFileName") unittest
+{
+    const expect = includeFileNamePrefix ~ "FooAspectName.h";
+    assert(expect == getIncludeFileName("FooAspect"));
+}
+
 private string getInclude(string aspectName) pure nothrow
 {
-    Appender!string app;
-    app ~= "#include \"";
-    app ~= includeFileNamePrefix;
-    app ~= aspectName;
-    app ~= "Name.h\"";
+    auto app = Appender!string("#include \"");
+    app ~= getIncludeFileName(aspectName);
+    app ~= '"';
     return app.data;
 }
 
 @("getInclude") unittest
 {
-    const expect = "#include \"" ~ includeFileNamePrefix ~ "FooAspectName.h\"";
-    assert(expect, getInclude("FooAspect"));
+    const expect = "#include \"" ~ getIncludeFileName("FooAspect") ~ '"';
+    assert(expect == getInclude("FooAspect"));
 }
 
 @("no effect on non aspect enum") unittest

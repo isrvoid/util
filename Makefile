@@ -1,7 +1,7 @@
 ifeq ($(RELEASE), 1)
-	DFALGS := -O -release -boundscheck=off
+	DFLAGS := -O -release -boundscheck=off
 else
-	DLFAGS := -debug
+	DFLAGS := -debug
 endif
 
 BUILDDIR := bin
@@ -12,7 +12,7 @@ $(BUILDDIR)/unittest: $(UNITTESTSRC)
 	@dmd $(DFLAGS) -unittest -main $^ -of$@
 
 $(BUILDDIR)/aspectnames: src/util/aspectnames.d src/util/removecomments.d
-	@dmd $(DLAGS) $^ -of$@
+	@dmd $(DFLAGS) $^ -of$@
 
 clean:
 	-@$(RM) $(wildcard $(BUILDDIR)/*)
