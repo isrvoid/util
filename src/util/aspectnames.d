@@ -170,7 +170,10 @@ private:
 }
 
 version (unittest)
+{
 import std.exception : assertThrown;
+import std.file : readText;
+}
 
 @("empty input") unittest
 {
@@ -322,7 +325,6 @@ import std.exception : assertThrown;
 
 @("slightly convoluted input") unittest
 {
-    import std.file : readText;
     const input = readText("test/aspectnames/miscaspects.h");
 
     auto parser = Parser(input);
@@ -430,7 +432,6 @@ string maybeUpdateInclude(string s) @trusted
     if (parser.empty)
         return s;
 
-    immutable (char)* tail = parser.front.upToPost.ptr;
     Appender!string app;
     void appendInclude()
     {
@@ -439,23 +440,29 @@ string maybeUpdateInclude(string s) @trusted
         app ~= includeComment;
     }
 
+    immutable char* inputEnd = s.ptr + s.length;
+    immutable (char)* p = s.ptr;
     for (; !parser.empty; parser.popFront())
     {
-        immutable char* tailEnd = parser.front.upToPost.ptr + parser.front.upToPost.length;
-        app ~= tail[0 .. tailEnd - tail];
-        tail = parser.front.post.ptr;
+        immutable char* pEnd = parser.front.upToPost.ptr + parser.front.upToPost.length;
+        app ~= p[0 .. pEnd - p];
+        p = parser.front.post.ptr;
 
         auto cap = parser.front.post.matchFirst(r);
         const bool missing = cap.empty;
         const bool wrongName = !cap.empty && cap[1] != parser.front.name;
         if (wrongName)
-            tail = cap.post.find('\n').ptr; // strip old include
+            p = cap.post.find('\n').ptr; // strip old include
 
         if (missing || wrongName)
+        {
+            if (p < inputEnd && *p == '\n')
+                ++p;
+
             appendInclude();
+        }
     }
-    immutable char* tailEnd = s.ptr + s.length;
-    app ~= tail[0 .. tailEnd - tail];
+    app ~= p[0 .. inputEnd - p];
     return app.data;
 }
 
@@ -503,7 +510,6 @@ private string getInclude(string aspectName) pure nothrow
 
 @("two includes") unittest
 {
-    import std.file : readText;
     const input = readText("test/aspectnames/twoincludes.h");
     const expect = readText("test/aspectnames/twoincludes-expect.h");
     assert(expect == input.maybeUpdateInclude);
@@ -511,8 +517,13 @@ private string getInclude(string aspectName) pure nothrow
 
 @("multiple misc includes") unittest
 {
-    import std.file : readText;
     const input = readText("test/aspectnames/multincludes.h");
     const expect = readText("test/aspectnames/multincludes-expect.h");
     assert(expect == input.maybeUpdateInclude);
+}
+
+@("no effect on expected input") unittest
+{
+    const expect = readText("test/aspectnames/multincludes-expect.h");
+    assert(expect == expect.maybeUpdateInclude);
 }

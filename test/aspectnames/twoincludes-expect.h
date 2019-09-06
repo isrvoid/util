@@ -5,7 +5,7 @@ enum class AAspect {
     _end
 };
 
-#include "_gen_AAspectName.h"
+#include "_gen_AAspectName.h" // generated
 
 enum class BAspect {
     bOne,
@@ -13,4 +13,3 @@ enum class BAspect {
 };
 
 #include "_gen_BAspectName.h" // generated
-

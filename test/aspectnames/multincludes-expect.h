@@ -18,10 +18,11 @@ enum class CAspect {
 };
 
 #include "_gen_CAspectName.h" // generated
+
 enum class Aspect {
     foo,
     _end
 };
 
 #include "_gen_AspectName.h" // generated
-
+// what?
