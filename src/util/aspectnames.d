@@ -32,7 +32,8 @@ module util.aspectnames;
 
 import util.removecomments;
 import std.format : format;
-
+import std.array : Appender;
+import std.regex : ctRegex, Captures, matchFirst;
 
 @safe:
 
@@ -88,8 +89,6 @@ struct Parser
 private:
     void matchNext()
     {
-        import std.regex : matchFirst;
-
         cap = matchFirst(toParse, r);
         if (!cap.empty)
             convCap();
@@ -160,10 +159,9 @@ private:
         return enums;
     }
 
-    import std.regex : ctRegex, Captures;
     enum aspectEnumNamePattern = r"enum\s+class\s+(\w*Aspect)";
     enum aspectEnumPattern = aspectEnumNamePattern ~ r"[^{]*\{([^}]*)\}\s*;";
-    static const r = ctRegex!aspectEnumPattern;
+    static immutable r = ctRegex!aspectEnumPattern;
 
     string input;
     string toParse;
@@ -182,21 +180,21 @@ import std.exception : assertThrown;
 
 @("non empty input") unittest
 {
-    string input = "#include <cstdio>\n\nclass Foo { int i; };\n";
+    const input = "#include <cstdio>\n\nclass Foo { int i; };\n";
     auto parser = Parser(input);
     assert(parser.empty);
 }
 
 @("non aspect enum") unittest
 {
-    string input = "#include <cstddef>\n\nenum class Foo { one, two };\n";
+    const input = "#include <cstddef>\n\nenum class Foo { one, two };\n";
     auto parser = Parser(input);
     assert(parser.empty);
 }
 
 @("aspect enum") unittest
 {
-    string input = "#include <cstdint>\n\nenum class Aspect { foo, _end };\n";
+    const input = "#include <cstdint>\n\nenum class Aspect { foo, _end };\n";
     auto parser = Parser(input);
     assert(!parser.empty);
     assert("Aspect" == parser.front.name);
@@ -208,7 +206,7 @@ import std.exception : assertThrown;
 
 @("empty post") unittest
 {
-    string input = "enum class FooAspect {bar,_end};";
+    const input = "enum class FooAspect {bar,_end};";
     auto parser = Parser(input);
     auto res = parser.front;
     assert("FooAspect" == res.name);
@@ -220,7 +218,7 @@ import std.exception : assertThrown;
 
 @("trailing ,") unittest
 {
-    string input = "enum class Aspect { foo\n, _end ,\n };";
+    const input = "enum class Aspect { foo\n, _end ,\n };";
     auto res = Parser(input).front;
     assert(["foo"] == res.e);
     assert(0 == res.offset);
@@ -228,7 +226,7 @@ import std.exception : assertThrown;
 
 @("popFront") unittest
 {
-    string input = "enum class Aspect { foo, _end };";
+    const input = "enum class Aspect { foo, _end };";
     auto parser = Parser(input);
     assert(!parser.empty);
     parser.popFront();
@@ -237,13 +235,13 @@ import std.exception : assertThrown;
 
 @("specified type") unittest
 {
-    string input = "enum class Aspect:unsinged\nint{\none,\n_end\n};\n";
+    const input = "enum class Aspect:unsinged\nint{\none,\n_end\n};\n";
     assert(["one"] == Parser(input).front.e);
 }
 
 @("commented enums") unittest
 {
-    string input = "enum class Aspect { one, // the quick brown fox
+    const input = "enum class Aspect { one, // the quick brown fox
         // jumps over\n  two,\n  _end /* _end enum */,  };";
     auto res = Parser(input).front;
     assert(["one", "two"] == res.e);
@@ -253,7 +251,7 @@ import std.exception : assertThrown;
 @("two enums") unittest
 {
     import std.algorithm : findSplitAfter;
-    string input = "enum class AAspect : int\n{\none,two,_end }\n;
+    const input = "enum class AAspect : int\n{\none,two,_end }\n;
                     enum class BAspect :unsigned int{ three, four, _end } ;
     ";
     auto parser = Parser(input);
@@ -281,7 +279,7 @@ import std.exception : assertThrown;
 
 @("assign 0 has no effect") unittest
 {
-    string input = "enum class Aspect { foo = 0, _end };";
+    const input = "enum class Aspect { foo = 0, _end };";
     auto res = Parser(input).front;
     assert(["foo"] == res.e);
     assert(0 == res.offset);
@@ -289,7 +287,7 @@ import std.exception : assertThrown;
 
 @("assign") unittest
 {
-    string input = "enum class Aspect { foo = 42, bar, _end };";
+    const input = "enum class Aspect { foo = 42, bar, _end };";
     auto parser = Parser(input);
     assert(["foo", "bar"] == parser.front.e);
     assert(42 == parser.front.offset);
@@ -325,7 +323,7 @@ import std.exception : assertThrown;
 @("slightly convoluted input") unittest
 {
     import std.file : readText;
-    string input = readText("test/aspectnames/miscaspects.h");
+    const input = readText("test/aspectnames/miscaspects.h");
 
     auto parser = Parser(input);
     assert("ModuleAAspect" == parser.front.name);
@@ -361,8 +359,8 @@ in (enums)
     if (offset > offsetMax)
         throw new Exception(format!"Offset %d would result in a large LUT. Max offset: %d"(offset, offsetMax));
 
-    import std.array : appender;
-    auto app = appender(qualifier);
+    Appender!string app;
+    app ~= qualifier;
     app ~= aspectName;
     app ~= postName;
 
@@ -418,4 +416,103 @@ in (enums)
     const expect = NameLutQualifier ~ "NumberAspectName[] = {\n    nullptr,\n    nullptr,\n"
         ~ "    nullptr,\n    nullptr,\n    one,\n    two,\n    three\n};\n";
     assert(expect == makeNameLut("NumberAspect", ["one", "two", "three"], 4));
+}
+
+private enum includeFileNamePrefix = "_gen_";
+private enum includeComment = " // generated\n";
+
+string maybeUpdateInclude(string s) @trusted
+{
+    import std.algorithm : find;
+    static immutable r = ctRegex!(`^\s*#include "` ~ includeFileNamePrefix ~ `(\w*Aspect)Name.h"`);
+
+    auto parser = Parser(s);
+    if (parser.empty)
+        return s;
+
+    immutable (char)* tail = parser.front.upToPost.ptr;
+    Appender!string app;
+    void appendInclude()
+    {
+        app ~= "\n\n";
+        app ~= parser.front.name.getInclude;
+        app ~= includeComment;
+    }
+
+    for (; !parser.empty; parser.popFront())
+    {
+        immutable char* tailEnd = parser.front.upToPost.ptr + parser.front.upToPost.length;
+        app ~= tail[0 .. tailEnd - tail];
+        tail = parser.front.post.ptr;
+
+        auto cap = parser.front.post.matchFirst(r);
+        const bool missing = cap.empty;
+        const bool wrongName = !cap.empty && cap[1] != parser.front.name;
+        if (wrongName)
+            tail = cap.post.find('\n').ptr; // strip old include
+
+        if (missing || wrongName)
+            appendInclude();
+    }
+    immutable char* tailEnd = s.ptr + s.length;
+    app ~= tail[0 .. tailEnd - tail];
+    return app.data;
+}
+
+private string getInclude(string aspectName) pure nothrow
+{
+    Appender!string app;
+    app ~= "#include \"";
+    app ~= includeFileNamePrefix;
+    app ~= aspectName;
+    app ~= "Name.h\"";
+    return app.data;
+}
+
+@("getInclude") unittest
+{
+    const expect = "#include \"" ~ includeFileNamePrefix ~ "FooAspectName.h\"";
+    assert(expect, getInclude("FooAspect"));
+}
+
+@("no effect on non aspect enum") unittest
+{
+    const input = "#inclue <cstdio>\n\nenum class Foo {\nfoo,\nbar\n};\n";
+    assert(input == input.maybeUpdateInclude);
+}
+
+@("missing include is inserted") unittest
+{
+    const input = "#include <cstdint>\n\nenum class FooAspect { foo, _end };";
+    const expect = input ~ "\n\n" ~ "FooAspect".getInclude ~ includeComment;
+    assert(expect == input.maybeUpdateInclude);
+}
+
+@("matching include is not changed") unittest
+{
+    const input = "#include <cstddef>\n\nenum class FooAspect { foo, _end };\n" ~ "FooAspect".getInclude;
+    assert(input == input.maybeUpdateInclude);
+}
+
+@("include is overwritten on name mismatch") unittest
+{
+    const input = "enum class FooAspect { foo, _end };\n" ~ "Aspect".getInclude;
+    const expect = "enum class FooAspect { foo, _end };\n\n" ~ "FooAspect".getInclude ~ includeComment;
+    assert(expect == input.maybeUpdateInclude);
+}
+
+@("two includes") unittest
+{
+    import std.file : readText;
+    const input = readText("test/aspectnames/twoincludes.h");
+    const expect = readText("test/aspectnames/twoincludes-expect.h");
+    assert(expect == input.maybeUpdateInclude);
+}
+
+@("multiple misc includes") unittest
+{
+    import std.file : readText;
+    const input = readText("test/aspectnames/multincludes.h");
+    const expect = readText("test/aspectnames/multincludes-expect.h");
+    assert(expect == input.maybeUpdateInclude);
 }
