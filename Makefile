@@ -9,10 +9,10 @@ BUILDDIR := bin
 UNITTESTSRC := src/util/removecomments.d src/util/aspectnames.d
 
 $(BUILDDIR)/unittest: $(UNITTESTSRC)
-	@dmd $(DFLAGS) -unittest -main $^ -of$@
+	@$(DC) $(DFLAGS) -unittest -main $^ -of$@
 
 $(BUILDDIR)/aspectnames: src/util/aspectnames.d src/util/removecomments.d
-	@dmd $(DFLAGS) $^ -of$@
+	@$(DC) $(DFLAGS) $^ -of$@
 
 clean:
 	-@$(RM) $(wildcard $(BUILDDIR)/*)

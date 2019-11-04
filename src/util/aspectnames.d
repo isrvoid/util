@@ -404,14 +404,18 @@ in (enums)
     }
 
     app ~= indent;
+    app ~= '"';
     app ~= enums[0];
+    app ~= '"';
     enums = enums[1 .. $];
 
     while (enums.length)
     {
         app ~= ",\n";
         app ~= indent;
+        app ~= '"';
         app ~= enums[0];
+        app ~= '"';
         enums = enums[1 .. $];
     }
     app ~= "\n};\n";
@@ -421,33 +425,33 @@ in (enums)
 
 @("single enumerator") unittest
 {
-    const expect = NameLutQualifier ~ "AspectName[] = {\n    foo\n};\n";
+    const expect = NameLutQualifier ~ "AspectName[] = {\n    \"foo\"\n};\n";
     assert(expect == makeNameLut("Aspect", ["foo"], 0));
 }
 
 @("two enumerators") unittest
 {
-    const expect = NameLutQualifier ~ "FooBarAspectName[] = {\n    foo,\n    bar\n};\n";
+    const expect = NameLutQualifier ~ "FooBarAspectName[] = {\n    \"foo\",\n    \"bar\"\n};\n";
     assert(expect == makeNameLut("FooBarAspect", ["foo", "bar"], 0));
 }
 
 @("multiple enumerators") unittest
 {
     const expect = NameLutQualifier ~ "NumberAspectName[] = {\n"
-        ~ "    one,\n    two,\n    three\n};\n";
+        ~ "    \"one\",\n    \"two\",\n    \"three\"\n};\n";
     assert(expect == makeNameLut("NumberAspect", ["one", "two", "three"], 0));
 }
 
 @("offset single enumerator") unittest
 {
-    const expect = NameLutQualifier ~ "FooAspectName[] = {\n    nullptr,\n    foo\n};\n";
+    const expect = NameLutQualifier ~ "FooAspectName[] = {\n    nullptr,\n    \"foo\"\n};\n";
     assert(expect == makeNameLut("FooAspect", ["foo"], 1));
 }
 
 @("offset multiple enumerators") unittest
 {
     const expect = NameLutQualifier ~ "NumberAspectName[] = {\n    nullptr,\n    nullptr,\n"
-        ~ "    nullptr,\n    nullptr,\n    one,\n    two,\n    three\n};\n";
+        ~ "    nullptr,\n    nullptr,\n    \"one\",\n    \"two\",\n    \"three\"\n};\n";
     assert(expect == makeNameLut("NumberAspect", ["one", "two", "three"], 4));
 }
 
