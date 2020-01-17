@@ -5,13 +5,13 @@ enum class AAspect {
     _end
 };
 
-#include "_gen_BAspectName.h"
+#include "_gen_BAspect.h"
 
 enum class BAspect {
     b,
     _end
 };
-#include "_gen_BAspectName.h"
+#include "_gen_BAspect.h"
 enum class CAspect {
     c,
     _end

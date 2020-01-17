@@ -1,17 +1,12 @@
 ifeq ($(RELEASE), 1)
 	DFLAGS := -O -release -boundscheck=off
 else
-	DFLAGS := -debug
+	DFLAGS := -debug -unittest
 endif
 
 BUILDDIR := bin
 
-UNITTESTSRC := src/util/removecomments.d src/util/aspectnames.d
-
-$(BUILDDIR)/unittest: $(UNITTESTSRC)
-	@$(DC) $(DFLAGS) -unittest -main $^ -of$@
-
-$(BUILDDIR)/aspectnames: src/util/aspectnames.d src/util/removecomments.d
+$(BUILDDIR)/aspectid: src/util/aspectid.d src/util/removecomments.d
 	@$(DC) $(DFLAGS) $^ -of$@
 
 clean:

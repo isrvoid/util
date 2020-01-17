@@ -10,4 +10,4 @@ enum class BAspect {
     _end
 };
 
-#include "_gen_WrongAspectName.h"
+#include "_gen_WrongAspect.h"

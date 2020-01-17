@@ -2,12 +2,12 @@
  * Copyright:   Copyright Johannes Teichrieb 2019
  * License:     opensource.org/licenses/MIT
  */
-module util.aspectnames;
+module util.aspectid;
 
 /*
  * specification:
  *
- * aspectnames sides with simplicity, incurring slight syntax restrictions:
+ * aspectid sides with simplicity, incurring slight syntax restrictions:
  * - don't comment out enum class Aspect definition
  * - no comments or macros between enum and opening {
  * - don't use preprocessor within enum class Aspect { } block (macros, include, conditional)
@@ -37,8 +37,7 @@ import std.regex : ctRegex, Captures, matchFirst;
 
 @safe:
 
-version (unittest) { } else
-void main(string[] args) @trusted
+void main(string[] args) @system
 {
     import std.getopt;
     import std.file : dirEntries, SpanMode, read, write;
@@ -64,7 +63,7 @@ void main(string[] args) @trusted
         string content = cast(string) read(e.name);
         string[] includeFileName;
         string[] includeFileContent;
-        string maybeModified = content.maybeUpdateInclude(includeFileName, includeFileContent);
+        string maybeModified = content.maybeUpdateInclude!makeNameLut(includeFileName, includeFileContent);
         if (content != maybeModified)
             e.name.write(maybeModified);
 
@@ -204,6 +203,8 @@ version (unittest)
 {
 import std.exception : assertThrown;
 import std.file : readText;
+
+enum testInputDir = "test/aspectid/";
 }
 
 @("empty input") unittest
@@ -356,7 +357,7 @@ import std.file : readText;
 
 @("slightly convoluted input") unittest
 {
-    const input = readText("test/aspectnames/miscaspects.h");
+    const input = readText(testInputDir ~ "miscaspects.h");
 
     auto parser = Parser(input);
     assert("ModuleAAspect" == parser.front.name);
@@ -462,14 +463,14 @@ version (unittest)
 string maybeUpdateInclude(string s) @trusted
 {
     string[] dummy1, dummy2;
-    return maybeUpdateInclude(s, dummy1, dummy2);
+    return maybeUpdateInclude!makeNameLut(s, dummy1, dummy2);
 }
 
 // TODO refactor to struct
-string maybeUpdateInclude(string s, out string[] includeFileName, out string[] content) @trusted
+string maybeUpdateInclude(alias pred)(string s, out string[] includeFileName, out string[] content) @trusted
 {
     import std.algorithm : find;
-    static immutable r = ctRegex!(`^\s*#include "` ~ includeFileNamePrefix ~ `(\w*Aspect)Name.h"`);
+    static immutable r = ctRegex!(`^\s*#include "` ~ includeFileNamePrefix ~ `(\w*Aspect).h"`);
 
     auto parser = Parser(s);
     if (parser.empty)
@@ -489,7 +490,7 @@ string maybeUpdateInclude(string s, out string[] includeFileName, out string[] c
     {
         auto front = parser.front;
         includeFileName ~= getIncludeFileName(front.name);
-        content ~= makeNameLut(front.name, front.e, front.offset);
+        content ~= pred(front.name, front.e, front.offset);
 
         immutable char* pEnd = front.upToPost.ptr + front.upToPost.length;
         app ~= p[0 .. pEnd - p];
@@ -517,13 +518,13 @@ private string getIncludeFileName(string aspectName) pure nothrow
 {
     auto app = Appender!string(includeFileNamePrefix);
     app ~= aspectName;
-    app ~= "Name.h";
+    app ~= ".h";
     return app.data;
 }
 
 @("getIncludeFileName") unittest
 {
-    const expect = includeFileNamePrefix ~ "FooAspectName.h";
+    const expect = includeFileNamePrefix ~ "FooAspect.h";
     assert(expect == getIncludeFileName("FooAspect"));
 }
 
@@ -569,20 +570,20 @@ private string getInclude(string aspectName) pure nothrow
 
 @("two includes") unittest
 {
-    const input = readText("test/aspectnames/twoincludes.h");
-    const expect = readText("test/aspectnames/twoincludes-expect.h");
+    const input = readText(testInputDir ~ "twoincludes.h");
+    const expect = readText(testInputDir ~ "twoincludes-expect.h");
     assert(expect == input.maybeUpdateInclude);
 }
 
 @("multiple misc includes") unittest
 {
-    const input = readText("test/aspectnames/multincludes.h");
-    const expect = readText("test/aspectnames/multincludes-expect.h");
+    const input = readText(testInputDir ~ "multincludes.h");
+    const expect = readText(testInputDir ~ "multincludes-expect.h");
     assert(expect == input.maybeUpdateInclude);
 }
 
 @("no effect on expected input") unittest
 {
-    const expect = readText("test/aspectnames/multincludes-expect.h");
+    const expect = readText(testInputDir ~ "multincludes-expect.h");
     assert(expect == expect.maybeUpdateInclude);
 }

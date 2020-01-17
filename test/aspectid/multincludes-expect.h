@@ -5,24 +5,24 @@ enum class AAspect {
     _end
 };
 
-#include "_gen_AAspectName.h" // generated
+#include "_gen_AAspect.h" // generated
 
 enum class BAspect {
     b,
     _end
 };
-#include "_gen_BAspectName.h"
+#include "_gen_BAspect.h"
 enum class CAspect {
     c,
     _end
 };
 
-#include "_gen_CAspectName.h" // generated
+#include "_gen_CAspect.h" // generated
 
 enum class Aspect {
     foo,
     _end
 };
 
-#include "_gen_AspectName.h" // generated
+#include "_gen_Aspect.h" // generated
 // what?
