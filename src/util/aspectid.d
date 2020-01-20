@@ -422,10 +422,28 @@ private string idLiteral(string aspectName, string enumerator) pure nothrow
 {
     import std.digest.crc;
     CRC32 crc;
-    crc.put(cast(const ubyte[]) aspectName);
+    crc.put(cast(const ubyte[]) aspectName.stripSuffix);
     crc.put('.');
     crc.put(cast(const ubyte[]) enumerator);
     return "0x" ~ crc.finish.toHexString!(Order.decreasing, LetterCase.lower);
+}
+
+private string stripSuffix(string aspectName) pure nothrow
+{
+    import std.string : endsWith;
+    enum suffix = "Aspect";
+    assert(aspectName.endsWith(suffix));
+    return aspectName[0 .. $ - suffix.length];
+}
+
+@("stripSuffix") unittest
+{
+    assert("Foo" == stripSuffix("FooAspect"));
+}
+
+@("stripSuffix suffix only") unittest
+{
+    assert("" == stripSuffix("Aspect"));
 }
 
 @("makeIdLut single enumerator") unittest
