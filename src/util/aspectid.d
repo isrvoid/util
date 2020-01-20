@@ -40,7 +40,7 @@ import std.regex : ctRegex, Captures, matchFirst;
 void main(string[] args) @system
 {
     import std.getopt;
-    import std.file : dirEntries, SpanMode, read, write;
+    import std.file;
     import std.path : extension, dirName, buildPath;
 
     string src;
@@ -53,6 +53,19 @@ void main(string[] args) @system
     {
         defaultGetoptPrinter("Generate and include names for Aspect enums in .h files.", opt.options);
         return;
+    }
+
+    void writeIfContentDiffers(string file, string expect)
+    {
+        string read;
+        try
+        {
+            read = cast(immutable char[]) file.read;
+        }
+        catch (FileException) { }
+
+        if (read != expect)
+            file.write(expect);
     }
 
     foreach (e; dirEntries(src, SpanMode.depth, false))
@@ -68,7 +81,7 @@ void main(string[] args) @system
             e.name.write(maybeModified);
 
         foreach (i, include; includeFileName)
-            e.name.dirName.buildPath(include).write(includeFileContent[i]);
+            writeIfContentDiffers(e.name.dirName.buildPath(include), includeFileContent[i]);
     }
 }
 
