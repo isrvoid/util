@@ -63,7 +63,7 @@ void main(string[] args) @system
         string content = cast(string) read(e.name);
         string[] includeFileName;
         string[] includeFileContent;
-        string maybeModified = content.maybeUpdateInclude!makeNameLut(includeFileName, includeFileContent);
+        string maybeModified = content.maybeUpdateInclude!makeIdLut(includeFileName, includeFileContent);
         if (content != maybeModified)
             e.name.write(maybeModified);
 
@@ -378,20 +378,108 @@ enum testInputDir = "test/aspectid/";
     assert(parser.empty);
 }
 
-private enum NameLutQualifier = "static constexpr const char* ";
+private enum indent = "    ";
+
+string makeIdLut(string aspectName, string[] enums, uint offset) pure
+{
+    checkOffset(offset);
+
+    Appender!string app;
+    app ~= idLutPrefix(aspectName);
+
+    foreach (i; 0 .. offset)
+        app ~= "0, ";
+
+    app ~= idLiteral(aspectName, enums[0]);
+    enums = enums[1 .. $];
+
+    while (enums.length)
+    {
+        app ~= ", ";
+        app ~= idLiteral(aspectName, enums[0]);
+        enums = enums[1 .. $];
+    }
+
+    app ~= idLutEnd;
+    return app.data;
+}
+
+private string idLutPrefix(string aspectName) pure nothrow
+{
+    Appender!string app;
+    app ~= "template<>\n";
+    app ~= "struct _AspectIdLut<";
+    app ~= aspectName;
+    app ~= "> {\n";
+    app ~= indent;
+    app ~= "static constexpr uint32_t id[] = { ";
+    return app.data;
+}
+
+private enum idLutEnd = " };\n};\n";
+
+private string idLiteral(string aspectName, string enumerator) pure nothrow
+{
+    import std.digest.crc;
+    CRC32 crc;
+    crc.put(cast(const ubyte[]) aspectName);
+    crc.put('.');
+    crc.put(cast(const ubyte[]) enumerator);
+    return "0x" ~ crc.finish.toHexString!(Order.decreasing, LetterCase.lower);
+}
+
+@("makeIdLut single enumerator") unittest
+{
+    Appender!string expect;
+    expect ~= idLutPrefix("Aspect");
+    expect ~= idLiteral("Aspect", "foo");
+    expect ~= idLutEnd;
+    assert(expect.data == makeIdLut("Aspect", ["foo"], 0));
+}
+
+@("makeIdLut two enumerators") unittest
+{
+    Appender!string expect;
+    expect ~= idLutPrefix("Aspect");
+    expect ~= idLiteral("Aspect", "foo") ~ ", ";
+    expect ~= idLiteral("Aspect", "bar");
+    expect ~= idLutEnd;
+    assert(expect.data == makeIdLut("Aspect", ["foo", "bar"], 0));
+}
+
+@("makeIdLut offset single enumerator") unittest
+{
+    Appender!string expect;
+    expect ~= idLutPrefix("Aspect");
+    expect ~= "0, ";
+    expect ~= idLiteral("Aspect", "foo");
+    expect ~= idLutEnd;
+    assert(expect.data == makeIdLut("Aspect", ["foo"], 1));
+}
+
+@("makeIdLut offset multiple enumerators") unittest
+{
+    Appender!string expect;
+    expect ~= idLutPrefix("Aspect");
+    expect ~= "0, 0, ";
+    expect ~= idLiteral("Aspect", "one") ~ ", ";
+    expect ~= idLiteral("Aspect", "two") ~ ", ";
+    expect ~= idLiteral("Aspect", "three");
+    expect ~= idLutEnd;
+    assert(expect.data == makeIdLut("Aspect", ["one", "two", "three"], 2));
+}
+
+private enum nameLutQualifier = "static constexpr const char* ";
 
 string makeNameLut(string aspectName, string[] enums, uint offset) pure
 in (enums)
 {
     enum : string {
-        qualifier = NameLutQualifier,
+        qualifier = nameLutQualifier,
         postName = "Name[] = {\n",
-        indent = "    "
     }
 
-    enum offsetMax = 256;
-    if (offset > offsetMax)
-        throw new Exception(format!"Offset %d would result in a large LUT. Max offset: %d"(offset, offsetMax));
+    checkOffset(offset);
 
     Appender!string app;
     app ~= qualifier;
@@ -426,34 +514,41 @@ in (enums)
 
 @("single enumerator") unittest
 {
-    const expect = NameLutQualifier ~ "AspectName[] = {\n    \"foo\"\n};\n";
+    const expect = nameLutQualifier ~ "AspectName[] = {\n    \"foo\"\n};\n";
     assert(expect == makeNameLut("Aspect", ["foo"], 0));
 }
 
 @("two enumerators") unittest
 {
-    const expect = NameLutQualifier ~ "FooBarAspectName[] = {\n    \"foo\",\n    \"bar\"\n};\n";
+    const expect = nameLutQualifier ~ "FooBarAspectName[] = {\n    \"foo\",\n    \"bar\"\n};\n";
     assert(expect == makeNameLut("FooBarAspect", ["foo", "bar"], 0));
 }
 
 @("multiple enumerators") unittest
 {
-    const expect = NameLutQualifier ~ "NumberAspectName[] = {\n"
+    const expect = nameLutQualifier ~ "NumberAspectName[] = {\n"
         ~ "    \"one\",\n    \"two\",\n    \"three\"\n};\n";
     assert(expect == makeNameLut("NumberAspect", ["one", "two", "three"], 0));
 }
 
 @("offset single enumerator") unittest
 {
-    const expect = NameLutQualifier ~ "FooAspectName[] = {\n    nullptr,\n    \"foo\"\n};\n";
+    const expect = nameLutQualifier ~ "FooAspectName[] = {\n    nullptr,\n    \"foo\"\n};\n";
     assert(expect == makeNameLut("FooAspect", ["foo"], 1));
 }
 
 @("offset multiple enumerators") unittest
 {
-    const expect = NameLutQualifier ~ "NumberAspectName[] = {\n    nullptr,\n    nullptr,\n"
+    const expect = nameLutQualifier ~ "NumberAspectName[] = {\n    nullptr,\n    nullptr,\n"
         ~ "    nullptr,\n    nullptr,\n    \"one\",\n    \"two\",\n    \"three\"\n};\n";
     assert(expect == makeNameLut("NumberAspect", ["one", "two", "three"], 4));
+}
+
+void checkOffset(uint offset) pure
+{
+    enum offsetMax = 256;
+    if (offset > offsetMax)
+        throw new Exception(format!"Offset %d would result in a large LUT. Max offset: %d"(offset, offsetMax));
 }
 
 private enum includeFileNamePrefix = "_gen_";
