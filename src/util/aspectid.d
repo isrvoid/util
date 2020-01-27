@@ -425,11 +425,16 @@ private string idLutPrefix(string aspectName) pure nothrow
     app ~= aspectName;
     app ~= "> {\n";
     app ~= indent;
-    app ~= "static constexpr uint32_t id[] = { ";
+    app ~= "static constexpr uint32_t id(";
+    app ~= aspectName;
+    app ~= " e) {\n";
+    app ~= indent;
+    app ~= indent;
+    app ~= "constexpr uint32_t a[] = { ";
     return app.data;
 }
 
-private enum idLutEnd = " };\n};\n";
+private enum idLutEnd = " };\n" ~ indent ~ indent ~ "return a[static_cast<int>(e)];\n" ~ indent ~ "}\n};\n";
 
 private string idLiteral(string aspectName, string enumerator) pure nothrow
 {
