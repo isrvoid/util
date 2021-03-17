@@ -30,14 +30,13 @@ module util.aspectid;
  * '_end' enumerator at the end is required; no name is generated for it
  */
 
-import util.removecomments;
 import std.format : format;
 import std.array : Appender;
 import std.regex : ctRegex, Captures, matchFirst;
 
-@safe:
+import util.removecomments;
 
-void main(string[] args) @system
+void main(string[] args)
 {
     import std.getopt;
     import std.file;
@@ -84,6 +83,8 @@ void main(string[] args) @system
             writeIfContentDiffers(e.name.dirName.buildPath(include), includeFileContent[i]);
     }
 }
+
+@safe:
 
 class ParseException : Exception
 {
